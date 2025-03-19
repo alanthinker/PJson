@@ -1,0 +1,9 @@
+bin
+obj
+Debug
+Release
+.vs
+packages
+/Chess2.Desktop/Properties/PublishProfiles/FolderProfile.pubxml.user
+/Release_Output
+/log
