@@ -37,4 +37,4 @@
   https://github.com/alanthinker/Newtonsoft.Json
 
 # vscode 效果图:
-<img src="https://github.com/alanthinker/PJson/example.jpg" />
+<img src="https://github.com/alanthinker/PJson/blob/master/example.png" />
