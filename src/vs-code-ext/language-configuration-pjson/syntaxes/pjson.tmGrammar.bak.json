@@ -1,0 +1,61 @@
+{
+	"scopeName": "source.pjson",
+	"patterns": [
+		{ "include": "#object" },
+		{ "include": "#array" }
+	],
+	"repository": {
+		"object": {
+			"begin": "{",
+			"end": "}",
+			"beginCaptures": {
+				"0": { "name": "punctuation.definition.dictionary.begin.json" }
+			  },
+			"endCaptures": {
+				"0": { "name": "punctuation.definition.dictionary.end.json" }
+			},
+			"name":"meta.structure.dictionary.json",
+			"patterns":[
+				{ "include": "#string" }
+			]
+		  },
+	  "expression": {
+		"patterns": [
+			{ "include": "#keyword" },
+			{ "include": "#string.quoted" },
+			{ "include": "#string.unquoted" },
+			{ "include": "#comment.single" },
+			{ "include": "#comment.block" }			
+		]
+	  },
+	  "keyword": {
+		"match": "true|false|null",
+		"name": "keyword.letter"
+	  },
+	  "string.quoted": {
+		"begin": "(\"|')+",
+		"end": "\\1",
+		"name": "string"		
+	  },	  
+	  "string.unquoted": {
+		"begin": "`([^`]*)`",
+		"end": "`\\1`",
+		"name": "entity.other.attribute-name",
+		"beginCaptures": {
+			"0": { "name": "keyword.control" }
+		  },
+		"endCaptures": {
+			"0": { "name": "keyword.control" }
+		}
+	  },
+	  "comment.single": {
+		"match": "//[\\s\\S]*",		 
+		"name": "comment.single"
+	  },
+	  "comment.block": {
+		"begin": "/\\*", 
+		"end": "\\*/",
+		"name": "comment.block"
+	  }
+	}
+  }

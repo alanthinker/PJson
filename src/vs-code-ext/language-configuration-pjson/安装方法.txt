@@ -1,0 +1,1 @@
+将本目录复制到 %USERPROFILE%\.vscode\extensions, 然后重新打开 VSCode 即可.

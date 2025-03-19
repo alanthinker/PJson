@@ -1,0 +1,34 @@
+{
+  "name": "language-configuration-pjson",
+  "displayName": "Language Configuration pjson",
+  "description": "Language Configuration pjson",
+  "version": "0.0.1",
+  "publisher": "vscode-pjson",
+  "engines": {
+    "vscode": "^1.28.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "pjson",
+        "extensions": [
+          ".pjson"
+        ],
+        "aliases": [
+          "pjson"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pjson",
+        "scopeName": "source.pjson",
+        "path": "./syntaxes/pjson.tmGrammar.json"
+      }
+    ]
+  }
+}
