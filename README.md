@@ -27,7 +27,7 @@
 ```
 
 这对配置文件非常友好, 字符串内完全避免了使用转义字符.
-如果字符串的开头是 `your_tag`, 那么结尾也是 'your_tag' 即可
+如果字符串的开头是 `your_tag`, 那么结尾也是 `your_tag` 即可
 
 # 项目说明
 * 此项目包含 csharp 和 rust 实现的 pjson reader.
