@@ -13,6 +13,8 @@ namespace TestPJson
         {
             Test1();
             Test2();
+
+            TestWriter.Test();
         }
 
         public static void Test1()
