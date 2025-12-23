@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
 
-    use rust::PJsonReader;
+    use pjson::PJsonReader;
     use serde_json;
 
     #[test]

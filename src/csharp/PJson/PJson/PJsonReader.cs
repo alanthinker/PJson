@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace PJson;
+namespace AlanThinker.Common;
 
 public enum JsonState
 {
@@ -109,9 +109,13 @@ public class PJsonReader
                 outBuffer.Append(ch);
                 break;
             case '/':
-                if (pjson[index + 1] == '/')
+                if (index + 1 < pjson.Length && pjson[index + 1] == '/')
                 {
                     states.Push(JsonState.InOneLineComment);
+                }
+                else
+                {
+                    outBuffer.Append(ch);
                 }
                 break;
             default:
@@ -148,9 +152,13 @@ public class PJsonReader
                 outBuffer.Append(ch);
                 break;
             case '/':
-                if (pjson[index + 1] == '/')
+                if (index + 1 < pjson.Length && pjson[index + 1] == '/')
                 {
                     states.Push(JsonState.InOneLineComment);
+                }
+                else
+                {
+                    outBuffer.Append(ch);
                 }
                 break;
             default:
@@ -179,9 +187,13 @@ public class PJsonReader
                 outBuffer.Append(ch);
                 break;
             case '/':
-                if (pjson[index + 1] == '/')
+                if (index + 1 < pjson.Length && pjson[index + 1] == '/')
                 {
                     states.Push(JsonState.InOneLineComment);
+                }
+                else
+                {
+                    outBuffer.Append(ch);
                 }
                 break;
             case '}':
@@ -210,7 +222,7 @@ public class PJsonReader
     private void ProcessNoQuotationKey()
     {
         outBuffer.Append('"');
-        while (pjson[index] != ':' && IsAsciiGraphic(pjson[index]))
+        while (index < pjson.Length && pjson[index] != ':' && IsAsciiGraphic(pjson[index]))
         {
             outBuffer.Append(pjson[index]);
             index++;
@@ -248,15 +260,20 @@ public class PJsonReader
                 break;
             case '}':
                 states.Pop();
+                EatExComma();
                 outBuffer.Append(ch);
                 break;
             case ']':
                 // 不会进入这里, 因为 PsValue 是属于 object 的
                 break;
             case '/':
-                if (pjson[index + 1] == '/')
+                if (index + 1 < pjson.Length && pjson[index + 1] == '/')
                 {
                     states.Push(JsonState.InOneLineComment);
+                }
+                else
+                {
+                    outBuffer.Append(ch);
                 }
                 break;
             default:
@@ -278,8 +295,9 @@ public class PJsonReader
         if (ch == '\n')
         {
             states.Pop();
-            outBuffer.Append(ch);
+            // 不追加注释内容到输出
         }
+        // 注释内容不输出
     }
 
     private void ProcessStateInString()
@@ -296,7 +314,8 @@ public class PJsonReader
                 outBuffer.Append(ch);
                 break;
             default:
-                outBuffer.Append(ch);
+                // 处理JSON字符串中的特殊字符
+                outBuffer.Append(EscapeJsonChar(ch));
                 break;
         }
     }
@@ -320,10 +339,8 @@ public class PJsonReader
             states.Pop();
 
             string content = GATempStringBuffer.ToString();
-            content = content.Replace("\\", @"\\");
-            content = content.Replace("\r", "");
-            content = content.Replace("\n", @"\n");
-            content = content.Replace("\"", "\\\"");
+            // 对GA字符串内容进行完整的JSON转义
+            content = EscapeJsonString(content);
 
             outBuffer.Append(content);
             GATempStringBuffer.Clear();
@@ -336,10 +353,19 @@ public class PJsonReader
         char ch = pjson[index];
         if (ch == '`')
         {
-            if (pjson[index + 1 + GATag.Length] == '`' && pjson.Substring(index + 1, GATag.Length) == GATag)
+            // 检查是否是结束标记
+            if (index + 1 + GATag.Length < pjson.Length &&
+                pjson[index + 1 + GATag.Length] == '`' &&
+                pjson.Substring(index + 1, GATag.Length) == GATag)
             {
                 states.Pop();
                 states.Push(JsonState.InGAStringEnd);
+                // 跳过标签字符
+                index += GATag.Length;
+            }
+            else
+            {
+                GATempStringBuffer.Append(ch);
             }
         }
         else
@@ -351,11 +377,11 @@ public class PJsonReader
     private void EatExComma()
     {
         int p = outBuffer.Length - 1;
-        while (!IsAsciiGraphic(outBuffer[p]))
+        while (p >= 0 && !IsAsciiGraphic(outBuffer[p]))
         {
             p--;
         }
-        if (outBuffer[p] == ',')
+        if (p >= 0 && outBuffer[p] == ',')
         {
             outBuffer.Remove(p, 1);
         }
@@ -365,5 +391,37 @@ public class PJsonReader
     {
         return ch >= 0x21 && ch <= 0x7E;
     }
-}
 
+    // 转义JSON字符串中的特殊字符
+    private string EscapeJsonString(string input)
+    {
+        var result = new StringBuilder();
+        foreach (char ch in input)
+        {
+            result.Append(EscapeJsonChar(ch));
+        }
+        return result.ToString();
+    }
+
+    // 转义单个JSON字符
+    private string EscapeJsonChar(char ch)
+    {
+        switch (ch)
+        {
+            case '"': return "\\\"";
+            case '\\': return "\\\\";
+            case '\b': return "\\b";
+            case '\f': return "\\f";
+            case '\n': return "\\n";
+            case '\r': return "\\r";
+            case '\t': return "\\t";
+            default:
+                // 处理控制字符（U+0000 到 U+001F）
+                if (ch >= '\u0000' && ch <= '\u001F')
+                {
+                    return $"\\u{((int)ch):x4}";
+                }
+                return ch.ToString();
+        }
+    }
+}

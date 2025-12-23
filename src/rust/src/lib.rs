@@ -7,9 +7,9 @@ use std::collections::VecDeque;
 enum JsonState {
     None,
     InArray,
-    //positon for object key
+    //position for object key
     PsKey,
-    //positon for object value
+    //position for object value
     PsValue,
     InString,
     InEscape,
@@ -39,6 +39,7 @@ pub struct PJsonReader<'a> {
 // * 允许对象和数组的最后一个元素后面有逗号
 // * 只读取pjson, 不保存pjson, 因为pjson只用于配置文件. 如果要保存动态数据, 另存到另外一个json文件中.
 //     下次启动的时候, 再合并2个文件的静态的数据和动态的数据, 好处是: 不会丢失注释, 不会因为保存异常丢失静态配置数据.
+
 impl<'a> PJsonReader<'a> {
     pub fn from_pjson(pjson_bytes: &[u8]) -> Vec<u8> {
         let mut pjson_reader = PJsonReader {
@@ -51,7 +52,7 @@ impl<'a> PJsonReader<'a> {
             GA_temp_string_buffer: vec![],
         };
 
-        //去除 utf8 BOM 头: efbbbf, 防止 serde json 无法解析json.
+        // 去除 utf8 BOM 头: efbbbf, 防止 serde json 无法解析json.
         if pjson_reader.pjson.len() > 3
             && pjson_reader.pjson[0] == 0xef
             && pjson_reader.pjson[1] == 0xbb
@@ -104,7 +105,6 @@ impl<'a> PJsonReader<'a> {
 
             pjson_reader.index += 1;
         }
-        //assert_eq!(*pjson_reader.states.back().unwrap(), JsonState::None);
         pjson_reader.out_buffer
     }
 
@@ -120,8 +120,10 @@ impl<'a> PJsonReader<'a> {
                 self.out_buffer.push(ch);
             }
             b'/' => {
-                if self.pjson[self.index + 1] == b'/' {
+                if self.index + 1 < self.pjson.len() && self.pjson[self.index + 1] == b'/' {
                     self.states.push_back(JsonState::InOneLineComment);
+                } else {
+                    self.out_buffer.push(ch);
                 }
             }
             _ => {
@@ -156,8 +158,10 @@ impl<'a> PJsonReader<'a> {
                 self.out_buffer.push(ch);
             }
             b'/' => {
-                if self.pjson[self.index + 1] == b'/' {
+                if self.index + 1 < self.pjson.len() && self.pjson[self.index + 1] == b'/' {
                     self.states.push_back(JsonState::InOneLineComment);
+                } else {
+                    self.out_buffer.push(ch);
                 }
             }
             _ => {
@@ -184,8 +188,10 @@ impl<'a> PJsonReader<'a> {
                 self.out_buffer.push(ch);
             }
             b'/' => {
-                if self.pjson[self.index + 1] == b'/' {
+                if self.index + 1 < self.pjson.len() && self.pjson[self.index + 1] == b'/' {
                     self.states.push_back(JsonState::InOneLineComment);
+                } else {
+                    self.out_buffer.push(ch);
                 }
             }
             b'}' => {
@@ -208,15 +214,20 @@ impl<'a> PJsonReader<'a> {
         }
     }
 
-    //处理不带双引号的 key
+    // 处理不带双引号的 key
     fn process_no_quotation_key(&mut self) {
         self.out_buffer.push(b'"');
-        while self.pjson[self.index] != b':' && self.pjson[self.index].is_ascii_graphic() {
+        while self.index < self.pjson.len()
+            && self.pjson[self.index] != b':'
+            && self.pjson[self.index].is_ascii_graphic()
+        {
             self.out_buffer.push(self.pjson[self.index]);
             self.index += 1;
         }
         self.out_buffer.push(b'"');
-        self.index -= 1;
+        if self.index > 0 {
+            self.index -= 1;
+        }
     }
 
     fn process_state_PsValue(&mut self) -> () {
@@ -246,15 +257,17 @@ impl<'a> PJsonReader<'a> {
             }
             b'}' => {
                 self.states.pop_back();
-                //self.eat_ex_comma(); //如果有 b',' 肯定进入 PsKey 了. 这里无需处理
+                self.eat_ex_comma();
                 self.out_buffer.push(ch);
             }
             b']' => {
-                //不会进入这里, 因为 PsValue 是属于 object 的
+                // 不会进入这里, 因为 PsValue 是属于 object 的
             }
             b'/' => {
-                if self.pjson[self.index + 1] == b'/' {
+                if self.index + 1 < self.pjson.len() && self.pjson[self.index + 1] == b'/' {
                     self.states.push_back(JsonState::InOneLineComment);
+                } else {
+                    self.out_buffer.push(ch);
                 }
             }
             _ => {
@@ -265,12 +278,8 @@ impl<'a> PJsonReader<'a> {
 
     fn process_state_InEscape(&mut self) -> () {
         let ch = self.pjson[self.index];
-        match ch {
-            _ => {
-                self.states.pop_back();
-                self.out_buffer.push(ch);
-            }
-        }
+        self.states.pop_back();
+        self.out_buffer.push(ch);
     }
 
     fn process_state_InOneLineComment(&mut self) -> () {
@@ -281,7 +290,7 @@ impl<'a> PJsonReader<'a> {
                 self.out_buffer.push(ch);
             }
             _ => {
-                //self.out_buffer.push(ch);
+                // 注释内容不输出到最终JSON
             }
         }
     }
@@ -298,7 +307,8 @@ impl<'a> PJsonReader<'a> {
                 self.out_buffer.push(ch);
             }
             _ => {
-                self.out_buffer.push(ch);
+                // 转义JSON特殊字符
+                self.escape_json_char(ch);
             }
         }
     }
@@ -312,11 +322,9 @@ impl<'a> PJsonReader<'a> {
                 self.GA_Tag =
                     String::from_utf8_lossy(&self.pjson[self.GA_start_index + 1..self.index])
                         .to_string();
-                //println!("gatag={}", self.GA_Tag);
-                //self.out_buffer.push(ch);
             }
             _ => {
-                //self.out_buffer.push(ch);
+                // do nothing
             }
         }
     }
@@ -327,20 +335,17 @@ impl<'a> PJsonReader<'a> {
             b'`' => {
                 self.states.pop_back();
 
-                //todo
+                // 获取GA字符串内容并转义
                 let content = String::from_utf8_lossy(&self.GA_temp_string_buffer);
+                let escaped_content = self.escape_json_string(&content);
 
-                let content = content.replace("\\", r#"\\"#); //必须第一个处理 '\'
-                let content = content.replace("\r", "");
-                let content = content.replace("\n", r#"\n"#);
-                let content = content.replace("\"", r#"\""#);
-
-                self.out_buffer.append(&mut content.as_bytes().to_vec());
+                self.out_buffer
+                    .extend_from_slice(escaped_content.as_bytes());
                 self.GA_temp_string_buffer.clear();
                 self.out_buffer.push(b'"');
             }
             _ => {
-                //self.out_buffer.push(ch);
+                // do nothing
             }
         }
     }
@@ -349,31 +354,105 @@ impl<'a> PJsonReader<'a> {
         let ch = self.pjson[self.index];
         match ch {
             b'`' => {
-                if self.pjson[self.index + 1 + self.GA_Tag.len()] == b'`'
-                    && String::from_utf8_lossy(
-                        &self.pjson[self.index + 1..self.index + 1 + self.GA_Tag.len()],
-                    ) == self.GA_Tag
+                // 检查是否是结束标记
+                let tag_end_index = self.index + 1 + self.GA_Tag.len();
+                if tag_end_index < self.pjson.len()
+                    && self.pjson[tag_end_index] == b'`'
+                    && String::from_utf8_lossy(&self.pjson[self.index + 1..tag_end_index])
+                        == self.GA_Tag
                 {
                     self.states.pop_back();
                     self.states.push_back(JsonState::InGAStringEnd);
+                    // 跳过标签字符，后续循环会自动增加index
+                    self.index += self.GA_Tag.len();
+                } else {
+                    self.GA_temp_string_buffer.push(ch);
                 }
-                //self.out_buffer.push(ch);
             }
             _ => {
-                //self.out_buffer.push(ch);
                 self.GA_temp_string_buffer.push(ch);
             }
         }
     }
 
-    //去除最后一个成员的 b','
+    // 去除最后一个成员的 b','
     fn eat_ex_comma(&mut self) {
-        let mut p = self.out_buffer.len() - 1;
-        while !self.out_buffer[p].is_ascii_graphic() {
-            p -= 1;
+        let mut p = self.out_buffer.len().checked_sub(1);
+        while let Some(pos) = p {
+            if !self.out_buffer[pos].is_ascii_graphic() {
+                p = pos.checked_sub(1);
+            } else {
+                break;
+            }
         }
-        if self.out_buffer[p] == b',' {
-            self.out_buffer.remove(p);
+
+        if let Some(pos) = p {
+            if self.out_buffer[pos] == b',' {
+                self.out_buffer.remove(pos);
+            }
         }
+    }
+
+    // 转义单个JSON字符
+    fn escape_json_char(&mut self, ch: u8) {
+        match ch {
+            b'"' => {
+                self.out_buffer.extend_from_slice(b"\\\"");
+            }
+            b'\\' => {
+                self.out_buffer.extend_from_slice(b"\\\\");
+            }
+            b'\x08' => {
+                // backspace
+                self.out_buffer.extend_from_slice(b"\\b");
+            }
+            b'\x0C' => {
+                // form feed
+                self.out_buffer.extend_from_slice(b"\\f");
+            }
+            b'\n' => {
+                self.out_buffer.extend_from_slice(b"\\n");
+            }
+            b'\r' => {
+                self.out_buffer.extend_from_slice(b"\\r");
+            }
+            b'\t' => {
+                self.out_buffer.extend_from_slice(b"\\t");
+            }
+            _ => {
+                // 处理控制字符 (U+0000 到 U+001F)
+                if ch <= 0x1F {
+                    let hex = format!("\\u{:04x}", ch);
+                    self.out_buffer.extend_from_slice(hex.as_bytes());
+                } else {
+                    self.out_buffer.push(ch);
+                }
+            }
+        }
+    }
+
+    // 转义整个JSON字符串
+    fn escape_json_string(&self, input: &str) -> String {
+        let mut result = String::new();
+        for ch in input.chars() {
+            match ch {
+                '"' => result.push_str("\\\""),
+                '\\' => result.push_str("\\\\"),
+                '\x08' => result.push_str("\\b"),
+                '\x0C' => result.push_str("\\f"),
+                '\n' => result.push_str("\\n"),
+                '\r' => result.push_str("\\r"),
+                '\t' => result.push_str("\\t"),
+                _ => {
+                    if ch <= '\u{001F}' {
+                        // 控制字符转换为Unicode转义序列
+                        result.push_str(&format!("\\u{:04x}", ch as u32));
+                    } else {
+                        result.push(ch);
+                    }
+                }
+            }
+        }
+        result
     }
 }
